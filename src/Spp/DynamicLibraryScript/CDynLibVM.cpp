@@ -1,7 +1,8 @@
 #include "CDynLibVM.h"
-#include "PlatformAPI.h"
+#include "../Platform/PlatformAPI.h"
 #include "CScript.h"
 #include <regex>
+
 
 namespace SPP
 {
@@ -14,6 +15,51 @@ namespace SPP
             if (Itr == mMap.end())
                 return nullptr;
             return Itr->second;
+        }
+
+        struct SCopyFileAttributes
+        {
+            SCopyFileAttributes(const char* pFilePath, bool required) :
+                pPath(pFilePath), fileExistsRequired(required){}
+
+            const char* pPath;
+            bool fileExistsRequired = false;
+        };
+
+        bool MoveFiles(const char* pNewDirPath, const char* pSrcDirPath, SCopyFileAttributes* pFiles,
+                       uint32_t fileCount)
+        {
+            using Dir = Platform::API::Directory;
+            using File = Platform::API::File;
+            if (!Dir::Exists(pNewDirPath))
+            {
+                if (!Dir::Create(pNewDirPath))
+                {
+                    return false;
+                }
+            }
+            
+            char pDstFilePath[2048];
+            char pSrcFilePath[2048];
+
+            for (uint32_t i = 0; i < fileCount; i++)
+            {
+                const auto& pFile = pFiles[i];
+                SPP_SPRINTF(pDstFilePath, sizeof(pDstFilePath), "%s/%s", pNewDirPath, pFile.pPath);
+                SPP_SPRINTF(pSrcFilePath, sizeof(pSrcFilePath), "%s/%s", pSrcDirPath, pFile.pPath);
+                if (!File::Exists(pSrcFilePath) && pFile.fileExistsRequired)
+                {
+                    return false;
+                }
+                if (!File::Copy(pSrcFilePath, pDstFilePath) &&
+                    pFile.fileExistsRequired)
+                {
+                    return false;
+               
+                }
+                File::Delete(pSrcFilePath);
+            }
+            return true;
         }
 
         CDynLibVM::~CDynLibVM()
@@ -36,13 +82,11 @@ namespace SPP
             return m_pLastUsedScript;
         }
 
-        uint32_t CDynLibVM::LoadScript(const void* pData, size_t dataSize)
+        uint32_t CDynLibVM::LoadScript(const SScriptInfo& Info)
         {
-            assert(pData);
-            (void)dataSize;
             char dirPath[512];
-            Platform::API::File::GetCurrentDirectoryPath(dirPath, 512);
-            const char* filePath = reinterpret_cast<const char*>(pData);
+            Platform::API::Directory::GetCurrentDirectoryPath(dirPath, 512);
+            const char* filePath = Info.vFiles[0].c_str();
             if (!Platform::API::File::Exists(filePath))
             {
                 return 0;
@@ -56,13 +100,13 @@ namespace SPP
                 auto id = m_vFreeScripts.back();
                 pScript = FindScript(m_mScripts, id);
                 scriptId = id;
-                pScript = new(pScript)CScript(scriptId, filePath);
+                pScript = new(pScript)CScript(scriptId, dirPath, filePath);
                 m_vFreeScripts.pop_back();
             }
             else
             {
                 scriptId = ++m_currId;
-                pScript = new CScript(scriptId, filePath);
+                pScript = new CScript(scriptId, dirPath, filePath);
                 m_mScripts.insert(ScriptMap::value_type(scriptId, pScript));
             }
             
@@ -115,6 +159,57 @@ namespace SPP
             pPtrs[CScript::FuncTypes::ON_RUN] = pfn;
         }
 
+        bool CDynLibVM::ReloadScript(CScript** ppScript)
+        {
+            CScript* pScript = *ppScript;
+            char pLibName[512];
+            char pDbgName[512];
+            char pTmpBuff[2048];
+
+            SPP_SPRINTF(pLibName, sizeof(pLibName), "%s.%s", pScript->GetName(), m_Config.sharedLibraryExt.c_str());
+            SPP_SPRINTF(pDbgName, sizeof(pDbgName), "%s.%s", pScript->GetName(), m_Config.sharedLibraryDebugSymbolExt.c_str());
+            // Copy files to the new tmp directory
+            char* pCurrDirPath = pTmpBuff;
+            if (!Platform::API::Directory::GetCurrentDirectoryPath(pCurrDirPath, sizeof(pTmpBuff)))
+            {
+                return false;
+            }
+            char pNewDirPath[2048];
+            uint32_t buildId = pScript->GetNextBuild() % 2;
+            SPP_SPRINTF(pNewDirPath, sizeof(pNewDirPath), "%s/%s_%d", pCurrDirPath, pLibName, buildId);
+            char pDbgSymbolName[512];
+            SPP_SPRINTF(pDbgSymbolName, sizeof(pDbgSymbolName), "%s", pDbgName);
+            SCopyFileAttributes pFiles[2] = { { pLibName, true }, { pDbgSymbolName, false } };
+            if (!MoveFiles(pNewDirPath, pCurrDirPath, pFiles, 2))
+            {
+                return false;
+            }
+            // Remove debug symbols after copy
+            //auto res = Platform::API::File::Delete(pDbgSymbolName);
+            uint64_t hLib = 0;
+            SPP_SPRINTF(pTmpBuff, sizeof(pTmpBuff), "%s/%s", pNewDirPath, pLibName);
+            if (!LoadLib(pTmpBuff, &hLib))
+            {
+                return false;
+            }
+
+            CScript::pfnEntryPoint aFuncTable[CScript::FuncTypes::_ENUM_COUNT];
+            LoadFuncPointers(hLib, aFuncTable);
+
+            auto hOldLib = pScript->GetLibHandle();
+            pScript->Init(hLib, pNewDirPath);
+            pScript->SetFuncTable(aFuncTable);
+
+            if (pScript->GetFuncTable()[CScript::FUNC_TYPE::ON_LOAD])
+            {
+                pScript->GetFuncTable()[CScript::FUNC_TYPE::ON_LOAD](pScript);
+            }
+            // Unload old lib
+            Platform::API::Library::Unload(hOldLib);
+            
+            return true;
+        }
+
         bool CDynLibVM::CompileScript(uint32_t scriptId, CompilationLogVec* pvErrors)
         {
             // TMP Config
@@ -133,15 +228,15 @@ namespace SPP
         bool CDynLibVM::CompileScript(CScript** ppScript, CompilationLogVec* pvErrors)
         {
             CScript* pScript = *ppScript;
-            UnloadScript(&pScript);
-
+            
             char pArgs[1024];
-            const char* pScriptName = pScript->GetName().c_str();
+            const char* pScriptName = pScript->GetName();
             char pLogName[512];
             char pLibName[512];
+            char pTmpBuff[2048];
 #if _MSC_VER
             sprintf_s(pLogName, sizeof(pLogName), "%s.log", pScriptName);
-            sprintf_s(pLibName, sizeof(pLibName), "%s.dll", pScriptName);
+            sprintf_s(pLibName, sizeof(pLibName), "%s.%s", pScriptName, m_Config.sharedLibraryExt.c_str());
             sprintf_s(pArgs, sizeof(pArgs), "%s %s %s > %s", m_Config.compileCmdLine.c_str(), pScriptName, pLibName, pLogName);
 #else
             sprintf(pLogName, "%s.log", pScriptName);
@@ -169,21 +264,8 @@ namespace SPP
             {
                 return false;
             }
-
-            uint64_t hLib = pScript->GetLibHandle();
-
-            if (!LoadLib(pLibName, &hLib))
-            {
-                return false;
-            }
-
-            pScript->Init(hLib);
-            LoadFuncPointers(hLib, pScript->GetFuncTable());
-            
-            auto pfn = pScript->GetFuncTable()[CScript::FuncTypes::ON_LOAD];
-            if (pfn)
-                pfn(0);
-            return true;
+        
+            return ReloadScript(&pScript);
         }
 
         bool CDynLibVM::RunScript(CScript** ppScript, void* pPtr)
@@ -222,7 +304,7 @@ namespace SPP
                 if (pfn)
                     pfn(0);
                 Platform::API::Library::Unload(pScript->GetLibHandle());
-                pScript->Init(0);
+                pScript->Init(0, 0);
                 m_vFreeScripts.push_back(pScript->GetID());
                 return true;
             }
@@ -235,7 +317,7 @@ namespace SPP
             for (auto& Pair : m_mScripts)
             {
                 auto pScript = Pair.second;
-                auto ModTime = File::GetModificationTime(pScript->GetName().c_str());
+                auto ModTime = File::GetModificationTime(pScript->GetName());
                 if (ModTime)
                 {
                     auto CurrModTime = pScript->GetModificationTime();

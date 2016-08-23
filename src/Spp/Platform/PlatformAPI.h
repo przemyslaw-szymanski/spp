@@ -12,8 +12,9 @@ namespace SPP
 
                 struct File
                 {
-                    static bool Exists(const char* filePath);
-                    static bool GetCurrentDirectoryPath(char* pOut, uint32_t buffSize);
+                    static const bool OVERRIDE = true;
+                    static const bool NO_OVERRIDE = false;
+                    static bool Exists(const char* filePath);                  
                     static uint64_t Open(const char* pFilePath, const char* options);
                     static void Close(uint64_t hFile);
                     static uint64_t GetSize(uint64_t hFile);
@@ -21,6 +22,18 @@ namespace SPP
                                        size_t elemCount);
                     static uint64_t GetModificationTime(const char* pFilePath);
                     static bool IsFileModified(uint64_t lastModTime, uint64_t currModTime);
+                    static bool Copy(const char* srcFilePath, const char* dstFilePath);
+                    static bool Delete(const char* pFilePath);
+                    static bool Move(const char* pSrcFilePath, const char* pDstFilePath, bool overwrite);
+                };
+
+                struct Directory
+                {
+                    static bool Exists(const char* dirPath);
+                    static bool GetCurrentDirectoryPath(char* pOut, uint32_t buffSize);
+                    static bool Create(const char* dirPath);
+                    static bool Delete(const char* dirPath);
+                    static bool Copy(const char* srcDirPath, const char* dstDirPath);
                 };
 
                 struct Library

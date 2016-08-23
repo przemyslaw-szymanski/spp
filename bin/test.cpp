@@ -16,7 +16,7 @@ EXPORT OnUnload(void* pPtr)
 
 EXPORT OnRun(void* pPtr)
 {
-    const char* msg = "hello1";
+    const char* msg = "hellooouuu34245345";
     IApi* pApi = (IApi*)pPtr;
     pApi->Print(msg);
     std::cout << msg << std::endl;

@@ -3,6 +3,7 @@
 #if defined(SPP_WINDOWS)
 #include <windows.h>
 #include <Shlwapi.h>
+#include <shellapi.h>
 
 namespace SPP
 {
@@ -16,13 +17,6 @@ namespace SPP
             if (0xFFFFFFFF == fileAttr)
                 return false;
             return true;
-        }
-
-        bool API::File::GetCurrentDirectoryPath(char* pOut, uint32_t buffSize)
-        {
-            char* pBuff = pOut;
-            auto len = ::GetCurrentDirectoryA(buffSize, pBuff);
-            return len > 0;
         }
 
         uint64_t API::File::Open(const char* pFilePath, const char* pOptions)
@@ -63,6 +57,76 @@ namespace SPP
             readSize = fread(pBuff, elemSize, elemCount, pFile);
 #endif
             return readSize;
+        }
+
+        bool API::File::Copy(const char* srcFilePath, const char* dstFilePath)
+        {
+            return ::CopyFileA(srcFilePath, dstFilePath, FALSE) == TRUE;
+        }
+
+        bool API::File::Delete(const char* pFilePath)
+        {
+            return ::DeleteFileA(pFilePath) == TRUE;
+        }
+
+        bool API::File::Move(const char* pSrcFilePath, const char* pDstFilePath, bool overwrite)
+        {
+            DWORD flags = 0;
+            if (overwrite)
+            {
+                flags |= MOVEFILE_COPY_ALLOWED;
+            }
+            auto res = ::MoveFileExA(pSrcFilePath, pDstFilePath, flags);
+#if _DEBUG
+            if (!res)
+            {
+                auto err = ::GetLastError();
+            }
+#endif
+            return res;
+        }
+
+        bool API::Directory::GetCurrentDirectoryPath(char* pOut, uint32_t buffSize)
+        {
+            char* pBuff = pOut;
+            auto len = ::GetCurrentDirectoryA(buffSize, pBuff);
+            return len > 0;
+        }
+
+        bool API::Directory::Exists(const char* dirPath)
+        {
+            return API::File::Exists(dirPath);
+        }
+
+        bool API::Directory::Create(const char* dirPath)
+        {
+            return ::CreateDirectoryA(dirPath, nullptr) == TRUE;
+        }
+
+        bool API::Directory::Delete(const char* dirPath)
+        {
+            ::SHFILEOPSTRUCT file_op = {
+                NULL,
+                FO_DELETE,
+                dirPath,
+                "",
+                FOF_NOCONFIRMATION |
+                FOF_NOERRORUI |
+                FOF_SILENT,
+                false,
+                0,
+                "" };
+            return ::SHFileOperationA(&file_op) == 0;
+        }
+
+        bool API::Directory::Copy(const char* srcDirPath, const char* dstDirPath)
+        {
+            ::SHFILEOPSTRUCTA s = { 0 };
+            s.wFunc = FO_COPY;
+            s.pFrom = srcDirPath;
+            s.pTo = dstDirPath;
+            s.fFlags = FOF_SILENT;
+            return ::SHFileOperationA(&s) == 0;
         }
 
         int32_t API::Library::Load(uint64_t* pLibHandle, const char* libPath)

@@ -1,2 +1,2 @@
 call "c:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\amd64\vcvars64.bat"
-call "c:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\amd64\cl.exe" /D_USRDLL %1 /link /DLL /MACHINE:X64 /OUT:%2
+call "c:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\amd64\cl.exe" /D_USRDLL %1 /link /DLL /DEBUG /MACHINE:X64 /OUT:%2

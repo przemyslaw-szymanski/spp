@@ -14,7 +14,9 @@ namespace SPP
             CSPP();
             ~CSPP();
 
-            IVirtualMachine* CreateVirtualMachine(VM_TYPE eType);
+            IVirtualMachine* CreateVirtualMachine(VM_TYPE eType, const IVirtualMachine::SConfig&);
+
+            std::string GetWorkDirectoryPath() const;
 
         protected:
 

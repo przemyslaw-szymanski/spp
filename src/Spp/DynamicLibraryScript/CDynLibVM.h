@@ -18,7 +18,7 @@ namespace SPP
 
             ~CDynLibVM();
 
-                uint32_t            LoadScript(const void* pData, size_t dataSize) override;
+                uint32_t            LoadScript(const SScriptInfo&) override;
                 bool                CompileScript(uint32_t scriptId, CompilationLogVec* pvErrors) override;
                 bool                RunScript(uint32_t scriptId, void*) override;
                 bool                UnloadScript(uint32_t scriptId) override;
@@ -28,9 +28,11 @@ namespace SPP
                 bool                RunScript(CScript** ppScript, void*);
                 bool                UnloadScript(CScript** ppScript);
 
+                bool                ReloadScript(CScript** ppScript);
+
             protected:
 
-                CScript*        _FindScript(uint32_t id);
+                CScript*            _FindScript(uint32_t id);
 
             protected:
 

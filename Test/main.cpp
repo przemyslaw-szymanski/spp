@@ -13,22 +13,42 @@ class CApi : public IApi
     }
 };
 
-int Main()
+int MainDLL()
 {
     CApi Api;
     SPP::CSPP* pSpp;
     if (!CreateSPP(&pSpp))
         return 1;
 
-    auto pVM = pSpp->CreateVirtualMachine(SPP::VMTypes::DYNAMIC_LIBRARY_CPP);
-    
     SPP::IVirtualMachine::SConfig Cfg;
     Cfg.compileCmdLine = "compile.cmd";
-    pVM->SetConfig(Cfg);
+    Cfg.sharedLibraryExt = "dll";
+    Cfg.sharedLibraryDebugSymbolExt = "pdb";
+    auto pVM = pSpp->CreateVirtualMachine(SPP::VMTypes::DYNAMIC_LIBRARY_CPP, Cfg);
 
+    Cfg.compilerDir = pSpp->GetWorkDirectoryPath();
+    char buff[1024];
+    SPP_SPRINTF(buff, sizeof(buff), "%s\\mono\\4.5\\mcs.exe {FILES} /target:module /out:{OUTPUT}",
+                Cfg.compilerDir.c_str());
+    Cfg.compileCmdLine = buff;
+    auto pCS = pSpp->CreateVirtualMachine(SPP::VMTypes::CSHARP, Cfg);
     SPP::IVirtualMachine::CompilationLogVec vErrors;
-    const char* name = "test.cpp";
-    auto id = pVM->LoadScript(name, strlen(name));
+    uint32_t id = 0;
+    {
+        
+        SPP::IVirtualMachine::SScriptInfo ScriptInfo;
+        ScriptInfo.name = "test";
+        ScriptInfo.vFiles.push_back("test.cpp");
+        id = pVM->LoadScript(ScriptInfo);
+    }
+    {
+        SPP::IVirtualMachine::SScriptInfo ScriptInfo;
+        ScriptInfo.name = "Test";
+        ScriptInfo.vFiles.push_back("Test.cs");
+        id = pCS->LoadScript(ScriptInfo);
+        pCS->CompileScript(id, &vErrors);
+    }
+
     bool exit = false;
     bool watchMode = false;
     uint32_t loopCount = 0;
@@ -41,7 +61,7 @@ int Main()
         {
             std::cout << "VM: ";
             std::cin >> strInput;
-            if (strInput == "compile")
+            if (strInput == "compile" || strInput == "c")
             {
                 if (pVM->CompileScript(id, &vErrors))
                     pVM->RunScript(id, &Api);
@@ -81,9 +101,14 @@ int Main()
     return 0;
 }
 
+int MainCSharp()
+{
+    return 0;
+}
+
 int main()
 {
-    int ret = Main();
+    int ret = MainDLL();
     _CrtDumpMemoryLeaks();
     return ret;
 }

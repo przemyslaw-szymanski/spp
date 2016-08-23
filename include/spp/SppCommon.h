@@ -7,6 +7,7 @@
 #include <cstring>
 #include <cstdint>
 #include <cassert>
+#include <algorithm>
 
 namespace SPP
 {
@@ -36,8 +37,22 @@ namespace SPP
         enum TYPE
         {
             DYNAMIC_LIBRARY_CPP,
+            CSHARP,
+            LUA,
+            CPP,
             _ENUM_COUNT
         };
     };
     using VM_TYPE = VMTypes::TYPE;
 } // SPP
+
+
+#if _MSC_VER
+#   define SPP_SPRINTF(_pBuff, _uBuffSize, _pFormat, ...) ::sprintf_s((_pBuff), (_uBuffSize), (_pFormat), __VA_ARGS__)
+#   define SPP_MEMCPY(_pDst, _uDstSize, _pSrc, _uBytesToCopy) ::memcpy_s((_pDst), (_uDstSize), (_pSrc), (_uBytesToCopy))
+#   define SPP_STRCAT(_pDst, _uDstSize, _pSrc) ::strcat_s((_pDst), (_uDstSize), (_pSrc))
+#else
+#   define SPP_SPRINTF(_pBuff, _uBuffSize, _pFormat, ...) ::sprintf((_pBuff), (_pFormat), _VA_ARGS_)
+#   define SPP_MEMCPY(_pDst, _uDstSize, _pSrc, _uBytesToCopy) ::memcpy((_pDst), (_pSrc), (_uBytesToCopy))
+#   define SPP_STRCAT(_pDst, _uDstSize, _pSrc) ::strcat((_pDst), (_pSrc))
+#endif

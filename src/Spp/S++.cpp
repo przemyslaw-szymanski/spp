@@ -1,5 +1,7 @@
 #include "S++.h"
 #include "DynamicLibraryScript/CDynLibVM.h"
+#include "CSharpScript/CMonoVM.h"
+#include "Platform/PlatformAPI.h"
 
 extern "C"
 {
@@ -45,7 +47,17 @@ namespace SPP
         m_pInternal = nullptr;
     }
 
-    IVirtualMachine* CSPP::CreateVirtualMachine(VM_TYPE eType)
+    std::string CSPP::GetWorkDirectoryPath() const
+    {
+        char buff[2048];
+        if (Platform::API::Directory::GetCurrentDirectoryPath(buff, sizeof(buff)))
+        {
+            return std::string(buff);
+        }
+        return "";
+    }
+
+    IVirtualMachine* CSPP::CreateVirtualMachine(VM_TYPE eType, const IVirtualMachine::SConfig& Cfg)
     {
         IVirtualMachine* pVM = nullptr;
         switch (eType)
@@ -53,11 +65,30 @@ namespace SPP
             case VMTypes::DYNAMIC_LIBRARY_CPP:
             {
                 pVM = new(std::nothrow)DynamicLibrary::CDynLibVM();
-                m_pInternal->vVMs.push_back(pVM);
+            }
+            break;
+            case VMTypes::CSHARP:
+            {
+#if SPP_USE_MONO
+                pVM = new(std::nothrow)CSharp::CMonoVM();             
+#endif
             }
             break;
             default:
             break;
+        }
+        if (pVM)
+        {
+            pVM->SetConfig(Cfg);
+            if (pVM->Init())
+            {
+                m_pInternal->vVMs.push_back(pVM);
+            }
+            else
+            {
+                delete pVM;
+                pVM = nullptr;
+            }
         }
         return pVM;
     }
