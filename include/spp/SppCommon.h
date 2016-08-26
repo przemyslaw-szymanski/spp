@@ -40,12 +40,14 @@ namespace SPP
             CSHARP,
             LUA,
             CPP,
+			ASM,
             _ENUM_COUNT
         };
     };
     using VM_TYPE = VMTypes::TYPE;
 } // SPP
 
+#define SPP_TO_STRING(_txt) #_txt
 
 #if _MSC_VER
 #   define SPP_SPRINTF(_pBuff, _uBuffSize, _pFormat, ...) ::sprintf_s((_pBuff), (_uBuffSize), (_pFormat), __VA_ARGS__)

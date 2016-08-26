@@ -1,6 +1,7 @@
 #include "S++.h"
 #include "DynamicLibraryScript/CDynLibVM.h"
 #include "CSharpScript/CMonoVM.h"
+#include "AsmVM/CAsmVM.h"
 #include "Platform/PlatformAPI.h"
 
 extern "C"
@@ -74,6 +75,11 @@ namespace SPP
 #endif
             }
             break;
+			case VMTypes::ASM:
+			{
+				pVM = new(std::nothrow)ASM::CAsmVM();
+			}
+			break;
             default:
             break;
         }

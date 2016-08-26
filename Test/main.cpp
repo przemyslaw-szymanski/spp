@@ -1,21 +1,9 @@
 #include "S++.h"
 #include <iostream>
 #include <string>
-#include "C:\Users\szymansk\Desktop\Projects\spp\bin\interface.h"
-
-class CApi : public IApi
-{
-    public:
-
-    void Print(const char* msg) override
-    {
-        std::cout << "APP Message: " << msg << std::endl;
-    }
-};
 
 int MainDLL()
 {
-    CApi Api;
     SPP::CSPP* pSpp;
     if (!CreateSPP(&pSpp))
         return 1;
@@ -45,9 +33,19 @@ int MainDLL()
         SPP::IVirtualMachine::SScriptInfo ScriptInfo;
         ScriptInfo.name = "Test";
         ScriptInfo.vFiles.push_back("Test.cs");
-        id = pCS->LoadScript(ScriptInfo);
-        pCS->CompileScript(id, &vErrors);
+		if (pCS)
+		{
+			id = pCS->LoadScript(ScriptInfo);
+			pCS->CompileScript(id, &vErrors);
+		}
     }
+	{
+		auto pAsmVM = pSpp->CreateVirtualMachine(SPP::VMTypes::ASM, Cfg);
+		SPP::IVirtualMachine::SScriptInfo ScriptInfo;
+		auto id = pAsmVM->LoadScript(ScriptInfo);
+		pAsmVM->CompileScript(id, nullptr);
+		pAsmVM->RunScript(id, 0);
+	}
 
     bool exit = false;
     bool watchMode = false;
@@ -64,7 +62,7 @@ int MainDLL()
             if (strInput == "compile" || strInput == "c")
             {
                 if (pVM->CompileScript(id, &vErrors))
-                    pVM->RunScript(id, &Api);
+                    pVM->RunScript(id, 0);
             }
             else if (strInput == "watch")
             {
@@ -85,7 +83,7 @@ int MainDLL()
             for (auto& id : vWatchScripts)
             {
                 if (pVM->CompileScript(id, &vErrors))
-                    pVM->RunScript(id, &Api);
+                    pVM->RunScript(id, nullptr);
             }
             if (loopCount > 10)
                 exit = true;
