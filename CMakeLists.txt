@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.3)
 
 set(SPP_LIB_NAME "S++")
 set(SPP_LIB_NAME_REL "${SPP_LIB_NAME}")

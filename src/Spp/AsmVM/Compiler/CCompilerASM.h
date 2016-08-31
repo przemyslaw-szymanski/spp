@@ -10,7 +10,11 @@ namespace SPP
 		{
 			public:
 
-				bool Compile(const TextTokenVec& vTokens, ByteCodeVec* pOut);
+				CCompilerASM();
+
+				static void Init();
+
+				bool Compile(const TextTokenVec& vTokens, SByteCodeBuffer* pOut);
 		};
 	} // ASM
 } // SPP

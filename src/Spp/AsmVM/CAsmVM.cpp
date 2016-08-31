@@ -2,6 +2,8 @@
 #include "VMInstructionImpl.h"
 #include "Parser/CParserASM.h"
 #include "Compiler/CCompilerASM.h"
+#include "Parser/CParserISA.h"
+#include "Compiler/CCompilerISA.h"
 #include "LexicalAnalyzer/CLexicalAnalyzerASM.h"
 #include "SyntaxAnalyzer/CSyntaxAnalyzerASM.h"
 
@@ -192,17 +194,28 @@ namespace SPP
 
 		bool CAsmVM::CompileScript(uint32_t scriptId, CompilationLogVec* pvErrors)
 		{
+			const char* pISA = SPP_TO_STRING(
+				add r1.i32 c1.i32 c2.i32;
+				prnt r1;
+			);
 			const char* pAsm = SPP_TO_STRING(
-				addiii 0 1 2 1 2 2
-				prnt 0 1
+				ADDIII 0 1 2 1 2 2
+				PRNT 0 1
 			);
 
+			CParserISA ParserISA;
+			TextTokenVec vTextTokens, vTextTokensASM;
+			ParserISA.Parse((const uint8_t*)pISA, strlen(pISA), &vTextTokens);
+			CParserISA::InstrVec vISAInstr;
+			ParserISA.Parse(vTextTokens, &vISAInstr);
+			CCompilerISA CompilerISA;
+			CompilerISA.Compile(vISAInstr, &vTextTokensASM);
 			CParserASM ParserASM;
-			TextTokenVec vTextTokens;
-			ParserASM.Parse((uint8_t*)pAsm, strlen(pAsm), &vTextTokens);
+			vTextTokens.clear();
+			ParserASM.Parse((const uint8_t*)pAsm, strlen(pAsm), &vTextTokens);
 			CCompilerASM CompilerASM;
-			ByteCodeVec vByteCode;
-			CompilerASM.Compile(vTextTokens, &vByteCode);
+			SByteCodeBuffer ByteCode;
+			CompilerASM.Compile(vTextTokens, &ByteCode);
 			return true;
 		}
 
