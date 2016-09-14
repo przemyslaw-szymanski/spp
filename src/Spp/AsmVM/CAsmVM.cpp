@@ -45,7 +45,23 @@ namespace SPP
 		uint16_t FuncCallToInstr(uint16_t funcAddr)
 		{
 			return funcAddr;
-		}		
+		}
+
+        uint64_t PtrToInstr(void* pPtr)
+        {
+            return reinterpret_cast< uint64_t >( pPtr );
+        }
+
+        uint64_t MovToInstr(uint32_t tableId, uint32_t regId, void* data )
+        {
+
+        }
+
+        template<typename _T_>
+        uint32_t MovToInstr(uint32_t tableId, uint32_t regId, _T_ data)
+        {
+
+        }
 
 		SRegisterValue* GetRegisterPtr(RegisterTable aaRegisters, const SRegister& Reg)
 		{
@@ -238,6 +254,8 @@ namespace SPP
 			pMem8 = aFuncMem;
 			pMem8 += AddInstruction(pMem8, OpCodes::ADDS, AluToInstr(0,5, 2,1, 2,2));
 			pMem8 += AddInstruction(pMem8, OpCodes::PRNT, AluToInstr(0,5));
+            pMem8 += AddInstruction( pMem8, OpCodes::MOVP, PtrToInstr( "HELLO WORLD" ) );
+            pMem8 += AddInstruction( pMem8, OpCodes::PRNT, AluToInstr( 0, 5 ) );
 			pMem8 += AddInstruction(pMem8, OpCodes::CODE_END);
 
 			SFuncStack Stack, FuncStack;

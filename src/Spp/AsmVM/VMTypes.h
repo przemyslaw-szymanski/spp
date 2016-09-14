@@ -9,6 +9,7 @@ namespace SPP
     {
         using StringToken = char[ 16 ];
         using StringVec = std::vector< StringToken >;
+        using UintVec = std::vector< uint32_t >;
 
         struct SRegister
         {
@@ -22,13 +23,13 @@ namespace SPP
             {
                 NOOP,
 
-                MOVS, MOVU, MOVF,
-                ADDS, ADDU, ADDF,
-                SUBS, SUBU, SUBF,
+                MOVS, MOVU, MOVF, MOVP,
+                ADDS, ADDU, ADDF, ADDP,
+                SUBS, SUBU, SUBF, SUBP,
                 MULS, MULU, MULF,
                 DIVS, DIVU, DIVF,
-                INCS, INCU, INCF,
-                DECS, DECU, DECF,
+                INCS, INCU, INCF, INCP,
+                DECS, DECU, DECF, DECP,
 
                 JMP,
                 CALL,
@@ -182,6 +183,12 @@ namespace SPP
             RegisterTable aaRegisters;
             uint32_t currPtr = 0;
             uint32_t currStackPtr = 0;
+        };
+
+        struct SHeap
+        {
+            UintVec vConstant;
+            UintVec vDynamic;
         };
     } // ASM
 } // SPP
