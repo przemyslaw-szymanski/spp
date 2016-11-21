@@ -68,6 +68,8 @@ namespace SPP
 
 			public:
 
+				CParserISA();
+
 				bool Parse(const uint8_t* pData, uint32_t dataSize, TextTokenVec* pOut);
 				bool Parse(const TextTokenVec& vTokens, InstrVec* pvOut);
 		};
