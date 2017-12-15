@@ -1,20 +1,15 @@
 cmake_minimum_required(VERSION 3.3)
 
-set(SPP_LIB_NAME "S++")
+set(LIB_NAMES "core" "asm" "bin" "hl")
+
+set(SPP_LIB_NAME "s++")
 set(SPP_LIB_NAME_REL "${SPP_LIB_NAME}")
 set(SPP_LIB_NAME_DBG "${SPP_LIB_NAME}_d")
-set(STANDALONE_NAME "S++Standalone")
-set(DEMO_NAME "S++Test")
+
+set(STANDALONE_NAME "s++Standalone")
+set(DEMO_NAME "s++Test")
 set(DEMO_NAME_REL "${DEMO_NAME}")
 set(DEMO_NAME_DBG "${DEMO_NAME}_d")
-
-MESSAGE("$ENV")
-IF($ENV{MONO_SDK_PATH})
-    SET(USE_MONO 1)
-ELSE()
-    SET(USE_MONO 0)
-ENDIF()
-
 
 MACRO(SUBDIRLIST result curdir)
   FILE(GLOB children RELATIVE ${curdir} ${curdir}/*)
@@ -110,11 +105,87 @@ MACRO(CREATE_PROJECT_DIRS)
     endforeach()
 ENDMACRO()
 
-project(${SPP_LIB_NAME} C CXX)
+set(LIB_NAME_LIST "")
 
+foreach(TMP_LIB_NAME ${LIB_NAMES})
+    set(LIB_NAME "${SPP_LIB_NAME}_${TMP_LIB_NAME}")
+    set(LIB_NAME_REL "${LIB_NAME}")
+    set(LIB_NAME_DBG "${LIB_NAME}_d")
+    project(${LIB_NAME} C CXX)
+
+    set(LIB_NAME_LIST "${LIB_NAME_LIST}" "${LIB_NAME}")
+
+    set(BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin")
+    set(LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+    set(INC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include/${TMP_LIB_NAME}")
+    set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/${TMP_LIB_NAME}")
+    COMPILER_OPTIONS()
+    add_definitions(-DSPP_API_EXPORT)
+    SET_INCLUDE_FILES()
+    CREATE_PROJECT_DIRS()
+    set(PROJECT_FILES
+        "${INCLUDE_FILES}"
+        "${SOURCE_FILES}"
+    )
+    include_directories(${INC_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/include/core")
+    add_library(${LIB_NAME} STATIC
+        ${PROJECT_FILES}
+    )
+
+    if( NOT ${LIB_NAME} STREQUAL "${SPP_LIB_NAME}_core" )
+        add_dependencies(${LIB_NAME} "${SPP_LIB_NAME}_core")
+        target_link_libraries(${LIB_NAME} "${SPP_LIB_NAME}_core")
+    endif()
+
+    SET(TARGET_NAME_REL "${SPP_LIB_NAME_REL}")
+    SET(TARGET_NAME_DBG "${SPP_LIB_NAME_DBG}")
+    set_target_properties(${LIB_NAME}
+        PROPERTIES
+        OUTPUT_NAME_DEBUG						${TARGET_NAME_DBG}
+        OUTPUT_NAME_RELEASE						${TARGET_NAME_REL}
+        DEBUG_OUTPUT_NAME						${TARGET_NAME_DBG}
+        RELEASE_OUTPUT_NAME						${TARGET_NAME_REL}
+        
+        LIBRARY_OUTPUT_DIRECTORY_DEBUG			${LIB_DIR}
+        IMPORT_LIBRARY_OUTPUT_DIRECTORY_DEBUG	${LIB_DIR}
+        RUNTIME_OUTPUT_DIRECTORY_DEBUG			${BIN_DIR}
+        EXECUTABLE_OUTPUT_DIRECTORY_DEBUG		${BIN_DIR}
+        LIBRARY_OUTPUT_DIRECTORY_RELEASE		${LIB_DIR}
+        IMPORT_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${LIB_DIR}
+        RUNTIME_OUTPUT_DIRECTORY_RELEASE		${BIN_DIR}
+        EXECUTABLE_OUTPUT_DIRECTORY_RELEASE		${BIN_DIR}
+        BINARY_DIR								${BIN_DIR}
+        LIBRARY_OUTPUT_DIRECTORY				${LIB_DIR}
+        ARCHIVE_OUTPUT_DIRECTORY				${LIB_DIR}
+        ARCHIVE_OUTPUT_DIRECTORY_DEBUG			${LIB_DIR}
+        ARCHIVE_OUTPUT_DIRECTORY_RELEASE		${LIB_DIR}
+    )
+
+    SET(LIBRARY_OUTPUT_DIRECTORY ${LIB_DIR})
+    SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LIB_DIR})
+    #SET(ARCHIVE_OUTPUT_DIRECTORY ${LIB_DIR})
+    MESSAGE("lib out dirs ${LIB_DIR}")
+
+    set_target_properties(${LIB_NAME} PROPERTIES LINKER_LANGUAGE CXX)
+
+    unset(LIB_NAME)
+    unset(LIB_NAME_REL)
+    unset(LIB_NAME_DBG)
+    unset(BIN_DIR)
+    unset(LIB_DIR)
+    unset(INC_DIR)
+    unset(SRC_DIR)
+    unset(PROJECT_FILES)
+    unset(TARGET_NAME_REL)
+    unset(TARGET_NAME_DBG)
+    unset(LIBRARY_OUTPUT_DIRECTORY)
+    unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+endforeach()
+
+project(${SPP_LIB_NAME} C CXX)
 set(BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin")
 set(LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib")
-set(INC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
+set(INC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include/Spp")
 set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/Spp")
 set(DEMO_DIR_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Test")
 #SET(PROJECT_BINARY_DIR "${BIN_DIR}")
@@ -134,8 +205,7 @@ set(PROJECT_FILES
 )
 message("proj files ${SOURCE_FILES}")
 
-include_directories(${INC_DIR})
-
+include_directories(${INC_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/include/")
 add_library(${SPP_LIB_NAME} SHARED
     ${PROJECT_FILES}
 )
@@ -170,6 +240,10 @@ SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LIB_DIR})
 MESSAGE("lib out dirs ${LIB_DIR}")
 
 set_target_properties(${SPP_LIB_NAME} PROPERTIES LINKER_LANGUAGE CXX)
+foreach(TMP_LIB_NAME ${LIB_NAME_LIST})
+    add_dependencies(${SPP_LIB_NAME} ${TMP_LIB_NAME})
+    target_link_libraries(${SPP_LIB_NAME} ${TMP_LIB_NAME})
+endforeach()
 
 IF(OS_WINDOWS EQUAL 1)
     FIND_LIBRARY(SHELL32_LIB "shell32.lib")
