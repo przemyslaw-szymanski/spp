@@ -8,6 +8,8 @@ namespace SPP
         {
             m_aOpcodeFunctions[Opcodes::UNKNOWN] = &CVirtualMachine::_NoOP;
             m_aOpcodeFunctions[ Opcodes::PRNT ] = &CVirtualMachine::_Prnt;
+            m_aOpcodeFunctions[ Opcodes::PUSH ] = &CVirtualMachine::_Push;
+            m_aOpcodeFunctions[ Opcodes::LOAD ] = &CVirtualMachine::_Load;
         }
 
         uint32_t CVirtualMachine::_ExecuteInstruction(const SInstructionDesc& Desc)
@@ -20,6 +22,11 @@ namespace SPP
         {
             const uint8_t* pCurrPtr = pCode;
             const uint8_t* pEndPtr = pCode + size;
+            // Read header
+            const SHeader* pHeader = reinterpret_cast< const SHeader* >( pCurrPtr );
+            
+            pCurrPtr = pCode + pHeader->codeStartOffset;
+
             while (pCurrPtr < pEndPtr)
             {
                 SInstructionDesc Desc;
@@ -34,5 +41,18 @@ namespace SPP
             printf("hello");
             return 0;
         }
+
+        uint32_t CVirtualMachine::_Push(const SInstrArguments& Args)
+        {
+            return 0;
+        }
+
+        uint32_t CVirtualMachine::_Load(const SInstrArguments& Args)
+        {
+            const auto pLoad = reinterpret_cast< const TSInstruction< SLoadConstant >* >( Args.pCode );
+            m_Stack.aRegisters[ pLoad->Data.reg1 ].u32 = pLoad->Data.offset;
+            return sizeof( TSInstruction< SLoadConstant > );
+        }
+
     } // Bin
 } // SPP
