@@ -14,6 +14,7 @@ struct SCodeBuilder
     uint8_t*    pCode;
     uint8_t*    pCurr;
     uint8_t*    pConstants;
+    uint8_t*    pCodeStart;
     uint32_t    codeSize;
 
     void Init(uint32_t constantSize)
@@ -26,16 +27,37 @@ struct SCodeBuilder
         pHeader->codeSize = codeSize - pHeader->codeStartOffset;
         
         pConstants = pCode + pHeader->constantStartOffset;
-        pCurr = pCode + pHeader->codeStartOffset;
+        pCodeStart = pCode + pHeader->codeStartOffset;
+        pCurr = pCodeStart;
     }
 
-    uint32_t AddConstant(void* pPtr)
+    uint32_t AddConstant(void* pPtr, uint32_t size)
     {
         SPP::Bin::SConstant* c = reinterpret_cast< SPP::Bin::SConstant* >( pConstants );
         uint32_t offset = pConstants - pCode;
         c->offset = offset;
         c->Value.ptr = pPtr;
         pConstants += sizeof( SPP::Bin::SConstant );
+
+        memcpy_s(pConstants, size, pPtr, size);
+        pConstants += size;
+
+        return offset;
+    }
+
+    template<typename T>
+    uint32_t AddConstant(const T& v)
+    {
+        SPP::Bin::SConstant* c = reinterpret_cast< SPP::Bin::SConstant* >(pConstants);
+        uint32_t offset = pConstants - pCode;
+        c->offset = offset;
+        memcpy_s(&c->Value, sizeof(c->Value), &v, sizeof(T));
+        pConstants += sizeof(SPP::Bin::SConstant);
+
+        const uint32_t size = sizeof(T);
+        memcpy_s(pConstants, size, &v, size);
+        pConstants += size;
+
         return offset;
     }
 
@@ -45,11 +67,13 @@ struct SCodeBuilder
     }
 
     template<typename T>
-    void Add(const TInstruction< T >& Instr)
+    uint32_t Add(const T& Instr)
     {
-        TInstruction< T >* pInstr = reinterpret_cast< TInstruction< T >* >( pCurr );
+        T* pInstr = reinterpret_cast< T* >( pCurr );
         *pInstr = Instr;
-        pCurr += sizeof( TInstruction< T > );
+        uint32_t offset = pCurr - pCodeStart;
+        pCurr += sizeof( T );
+        return offset;
     }
 
     void Add(Opcode op, uint32_t arg1, uint32_t arg2)
@@ -61,22 +85,43 @@ struct SCodeBuilder
 int MainDLL()
 {
     
-    const char* pFmt = "Hello";
+    const char* pFmt = "Hello %d";
     uint8_t aCode[1024];
     SCodeBuilder Builder;
     Builder.pCode = aCode;
     Builder.codeSize = sizeof(aCode);
     Builder.Init(128);
-    uint32_t offset = Builder.AddConstant( (void*)pFmt );
-    TInstruction< SPP::Bin::SLoadConstant > Load;
-    Load.Op.op = Opcodes::LOAD;
-    Load.Op.mask.arg1Constant = 1;
-    Load.Data.reg1 = 1;
-    Load.Data.offset = offset;
-    SInstruction1 Push;
-    Push.Op.op = Opcodes::PUSH;
-    Push.reg1 = Load.Data.reg1;
-    Builder.Add(Load);
+    uint32_t offset = Builder.AddConstant( (void*)pFmt, strlen(pFmt)+1 );
+    uint32_t offset2 = Builder.AddConstant<uint32_t>(123);
+    SPP::Bin::Instructions::SLoad Load;
+    SPP::Bin::Instructions::SInstr1 Instr1;
+    Load.Opcode = Opcodes::LOAD;
+    Load.Mask.isConstant = 1;
+    Load.Mask.type = SPP::Bin::RegDataTypes::PTR;
+    Load.dstRegIdx = 1;
+    Load.offset = offset;
+    offset = Builder.Add(Load);
+
+    Load.Mask.type = SPP::Bin::RegDataTypes::UINT_32;
+    Load.dstRegIdx = 2;
+    Load.offset = offset2;
+    offset = Builder.Add(Load);
+
+    Instr1.Opcode = Opcodes::PUSH;
+    Instr1.dstRegIdx = 1;
+    offset = Builder.Add(Instr1);
+
+    Instr1.dstRegIdx = 2;
+    Builder.Add(Instr1);
+
+    Instr1.Opcode = Opcodes::PRNT;
+    Instr1.arg1 = 2;
+    Builder.Add(Instr1);
+
+    SPP::Bin::Instructions::SJmp Jmp;
+    Jmp.Opcode = Opcodes::JMP;
+    Jmp.offset = offset;
+    Builder.Add(Jmp);
 
     SPP::Bin::CVirtualMachine VM;
     VM.Execute(aCode, sizeof(aCode));

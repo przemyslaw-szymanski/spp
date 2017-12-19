@@ -167,6 +167,7 @@ namespace SPP
                 CALL,
                 PRNT,
 
+
                 _COUNT
             };
         };
@@ -189,9 +190,29 @@ namespace SPP
                 float       f32;
                 double      f64;
 
-                void*       ptr;
+                const void* ptr;
             };
         };
+
+        struct RegDataTypes
+        {
+            enum TYPE
+            {
+                INT_8,
+                INT_16,
+                INT_32,
+                INT_64,
+                UINT_8,
+                UINT_16,
+                UINT_32,
+                UINT_64,
+                F_32,
+                F_64,
+                PTR,
+                _COUNT
+            };
+        };
+        using REG_DATA_TYPE = RegDataTypes::TYPE;
 
         struct SHeader
         {
@@ -204,7 +225,9 @@ namespace SPP
         struct SStack
         {
             static const uint32_t REGISTER_COUNT = 128;
-            SValue   aRegisters[REGISTER_COUNT];
+            SValue      aRegisters[REGISTER_COUNT];
+            SValue      aRegStack[REGISTER_COUNT];
+            uint16_t    currStackPtr = 0;
         };
 
         struct SHeap
@@ -250,17 +273,69 @@ namespace SPP
             uint32_t    offset;
         };
 
-        template<typename T>
-        struct TSInstruction
-        {
-            SOpcode     Op;
-            T           Data;
-        };
+        
 
         struct SInstruction1
         {
             SOpcode     Op;
             uint8_t     reg1;
+        };
+
+        struct Instructions
+        {
+            struct SBase
+            {
+                OPCODE  Opcode;
+            };
+            
+            struct SInstr1 : public SBase
+            {
+                union
+                {
+                    uint8_t     arg1;
+                    uint8_t     dstRegIdx;
+                };
+            };
+
+            struct SInstr2 : public SInstr1
+            {
+                union
+                {
+                    uint8_t     arg2;
+                    uint8_t     srcRegIdx1;
+                };
+            };
+
+            struct SInstr3 : public SInstr2
+            {
+                union
+                {
+                    uint8_t     arg3;
+                    uint8_t     srcRegIdx2;
+                };
+            };
+
+            struct SLoad : public SBase
+            {
+                struct
+                {
+                    uint8_t     isConstant  : 1;
+                    uint8_t     type        : 4;
+
+                } Mask;
+                uint8_t     dstRegIdx;
+                uint32_t    offset;
+            };
+
+            struct SJmp : public SBase
+            {
+                uint32_t    offset;
+            };
+        };
+
+        template<typename T>
+        struct TSInstruction
+        {
         };
 
         struct SCodeBuilder
@@ -271,6 +346,7 @@ namespace SPP
         class CVirtualMachine
         {
             using ArgumentType = uint8_t;
+            using InstrRetType = const uint8_t*;
 
             struct SInstrArguments
             {
@@ -292,26 +368,35 @@ namespace SPP
             };
             using InstrResult = InstructionResults::RESULT;
 
-            using OpcodeFunc = uint32_t(CVirtualMachine::*)(const SInstrArguments&);
+            using OpcodeFunc = InstrRetType(CVirtualMachine::*)(const SInstrArguments&);
 
             public:
 
                 CVirtualMachine();
                 void    Execute(const uint8_t* pCode, const size_t codeSize);
 
-            protected:
+            protected:  
 
-                uint32_t   _ExecuteInstruction(const SInstructionDesc& Instr);
+                InstrRetType   _ExecuteInstruction(const SInstructionDesc& Instr);
 
-                uint32_t    _Prnt(const SInstrArguments&);
-                uint32_t    _NoOP(const SInstrArguments&) { return 0; }
-                uint32_t    _Push(const SInstrArguments&);
-                uint32_t    _Load( const SInstrArguments& );
+                InstrRetType    _Prnt(const SInstrArguments&);
+                InstrRetType    _NoOP(const SInstrArguments&) { return 0; }
+                InstrRetType    _Push(const SInstrArguments&);
+                InstrRetType    _Pop(const SInstrArguments&);
+                InstrRetType    _Load( const SInstrArguments& );
+                InstrRetType    _Jmp(const SInstrArguments&);
+                InstrRetType    _Mov(const SInstrArguments&);
+                InstrRetType    _Add(const SInstrArguments&);
+                InstrRetType    _Sub(const SInstrArguments&);
+                InstrRetType    _Mul(const SInstrArguments&);
+                InstrRetType    _Div(const SInstrArguments&);
 
             protected:
 
                 OpcodeFunc  m_aOpcodeFunctions[ Opcodes::_COUNT ];
-                SStack      m_Stack;
+                SStack          m_Stack;
+                const uint8_t*  m_pCode;
+                const uint8_t*  m_pConstants;
         };
     } // Bin
 } // SPP
