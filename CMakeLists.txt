@@ -1,314 +1,111 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required (VERSION 2.6)
 
-set(LIB_NAMES "core" "asm" "bin" "hl")
+set(ENGINE_NAME "S++")
+set(PROJECT_NAME "${ENGINE_NAME}")
+set(CORE_ENGINE_NAME "${ENGINE_NAME}_core")
+set(BIN_ENGINE_NAME "${ENGINE_NAME}_bin")
+set(ASM_ENGINE_NAME "${ENGINE_NAME}_asm")
+set(HL_ENGINE_NAME "${ENGINE_NAME}_hl")
 
-set(SPP_LIB_NAME "s++")
-set(SPP_LIB_NAME_REL "${SPP_LIB_NAME}")
-set(SPP_LIB_NAME_DBG "${SPP_LIB_NAME}_d")
-
-set(STANDALONE_NAME "s++Standalone")
-set(DEMO_NAME "s++Test")
-set(DEMO_NAME_REL "${DEMO_NAME}")
-set(DEMO_NAME_DBG "${DEMO_NAME}_d")
-
-MACRO(SUBDIRLIST result curdir)
-  FILE(GLOB children RELATIVE ${curdir} ${curdir}/*)
-  SET(dirlist "")
-  FOREACH(child ${children})
-    IF(IS_DIRECTORY ${curdir}/${child})
-        LIST(APPEND dirlist ${child})
-    ENDIF()
-  ENDFOREACH()
-  SET(${result} ${dirlist})
-ENDMACRO()
-
-MACRO(SET_INCLUDE_FILES)
-
-    set(INC_FILES_PATTERN
-        "${INC_DIR}/*.h"
-        "${INC_DIR}/*.inl"
-        "${INC_DIR}/*.hpp")
-
-    set(SRC_FILES_PATTERN
-        "${SRC_DIR}/*.c"
-        "${SRC_DIR}/*.cpp"
-        "${SRC_DIR}/*.h"
-        "${SRC_DIR}/*.inl"
-        "${SRC_DIR}/*.hpp")
-
-    file(GLOB_RECURSE INCLUDE_FILES ${INC_FILES_PATTERN})
-    file(GLOB_RECURSE SOURCE_FILES ${SRC_FILES_PATTERN})
-    #file(GLOB_RECURSE ALL_FILES ${INC_FILES})
-
-ENDMACRO()
-
-MACRO(COMPILER_OPTIONS)
-    if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        SET(OS_WINDOWS 1)
-        add_definitions(-DSPP_WINDOWS)
-    elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-        SET(OS_LINUX 1)
-        add_definitions(-DSPP_LINUX)
-    elseif(${CMAKE_SYSTEM_NAME} MATCHES "Android")
-        SET(OS_ANDROID 1)
-        add_definitions(-DSPP_ANDROID)
-    else()
-        message(FATAL_ERROR "Unknown system")
-    endif()
-
-    if (ANDROID)
-        add_definitions(-std=c++11)
-        include_directories(android-windowing)
-        add_subdirectory(android-windowing)
-    else()
-        if (${CMAKE_GENERATOR} MATCHES "Visual Studio")
-            set(CPP_FLAGS "/MP /W4 /fp:fast /GR- /GF")
-            set(CPP_DEBUG_FLAGS "/MTd /EHsc /arch:IA32 /Qpar-")
-            set(CPP_RELEASE_FLAGS "/MT /arch:AVX2 /Oi /Qpar")
-        else()
-            set(CPP_FLAGS "-fms-extensions -std=c++11 -Wall")
-            set(CPP_DEBUG_FLAGS "")
-            set(CPP_RELEASE_FLAGS "")
-            add_definitions(-std=c++11)
-        endif() # ${CMAKE_GENERATOR} MATCHES "Visual Studio"
-    endif()
-    
-    set(CMAKE_C_FLAGS_RELEASE	         "${CMAKE_CXX_FLAGS_RELEASE} ${CPP_FLAGS} ${CPP_RELEASE_FLAGS}")
-    set(CMAKE_C_FLAGS_DEBUG		         "${CMAKE_CXX_FLAGS_DEBUG} ${CPP_FLAGS}  ${CPP_DEBUG_FLAGS}")
-    set(CMAKE_CXX_FLAGS_RELEASE	         "${CMAKE_CXX_FLAGS_RELEASE} ${CPP_FLAGS} ${CPP_RELEASE_FLAGS}")
-    set(CMAKE_CXX_FLAGS_DEBUG	         "${CMAKE_CXX_FLAGS_DEBUG} ${CPP_FLAGS}  ${CPP_DEBUG_FLAGS}")
-ENDMACRO()
-
-MACRO(CREATE_PROJECT_DIRS)
-    foreach(f ${INCLUDE_FILES})
-        # Get the path of the file relative to ${DIRECTORY},
-        # then alter it (not compulsory)
-        file(RELATIVE_PATH GRP ${INC_DIR} ${f})
-        set(GRP "include/${GRP}")
-        # Extract the folder, ie remove the filename part
-        string(REGEX REPLACE "(.*)(/[^/]*)$" "\\1" GRP ${GRP})
-        # Source_group expects \\ (double antislash), not / (slash)
-        string(REPLACE / \\ GRP ${GRP})
-        source_group("${GRP}" FILES ${f})
-    endforeach()
-
-    foreach(f ${SOURCE_FILES})
-        # Get the path of the file relative to ${DIRECTORY},
-        # then alter it (not compulsory)
-        file(RELATIVE_PATH GRP ${SRC_DIR} ${f})
-        set(GRP "src/${GRP}")
-        # Extract the folder, ie remove the filename part
-        string(REGEX REPLACE "(.*)(/[^/]*)$" "\\1" GRP ${GRP})
-        # Source_group expects \\ (double antislash), not / (slash)
-        string(REPLACE / \\ GRP ${GRP})
-        source_group("${GRP}" FILES ${f})
-    endforeach()
-ENDMACRO()
-
-set(LIB_NAME_LIST "")
-
-foreach(TMP_LIB_NAME ${LIB_NAMES})
-    set(LIB_NAME "${SPP_LIB_NAME}_${TMP_LIB_NAME}")
-    set(LIB_NAME_REL "${LIB_NAME}")
-    set(LIB_NAME_DBG "${LIB_NAME}_d")
-    project(${LIB_NAME} C CXX)
-
-    set(LIB_NAME_LIST "${LIB_NAME_LIST}" "${LIB_NAME}")
-
-    set(BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin")
-    set(LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib")
-    set(INC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include/${TMP_LIB_NAME}")
-    set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/${TMP_LIB_NAME}")
-    COMPILER_OPTIONS()
-    add_definitions(-DSPP_API_EXPORT)
-    SET_INCLUDE_FILES()
-    CREATE_PROJECT_DIRS()
-    set(PROJECT_FILES
-        "${INCLUDE_FILES}"
-        "${SOURCE_FILES}"
-    )
-    include_directories(${INC_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/include/core")
-    add_library(${LIB_NAME} STATIC
-        ${PROJECT_FILES}
-    )
-
-    if( NOT ${LIB_NAME} STREQUAL "${SPP_LIB_NAME}_core" )
-        add_dependencies(${LIB_NAME} "${SPP_LIB_NAME}_core")
-        target_link_libraries(${LIB_NAME} "${SPP_LIB_NAME}_core")
-    endif()
-
-    SET(TARGET_NAME_REL "${SPP_LIB_NAME_REL}")
-    SET(TARGET_NAME_DBG "${SPP_LIB_NAME_DBG}")
-    set_target_properties(${LIB_NAME}
-        PROPERTIES
-        OUTPUT_NAME_DEBUG						${TARGET_NAME_DBG}
-        OUTPUT_NAME_RELEASE						${TARGET_NAME_REL}
-        DEBUG_OUTPUT_NAME						${TARGET_NAME_DBG}
-        RELEASE_OUTPUT_NAME						${TARGET_NAME_REL}
-        
-        LIBRARY_OUTPUT_DIRECTORY_DEBUG			${LIB_DIR}
-        IMPORT_LIBRARY_OUTPUT_DIRECTORY_DEBUG	${LIB_DIR}
-        RUNTIME_OUTPUT_DIRECTORY_DEBUG			${BIN_DIR}
-        EXECUTABLE_OUTPUT_DIRECTORY_DEBUG		${BIN_DIR}
-        LIBRARY_OUTPUT_DIRECTORY_RELEASE		${LIB_DIR}
-        IMPORT_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${LIB_DIR}
-        RUNTIME_OUTPUT_DIRECTORY_RELEASE		${BIN_DIR}
-        EXECUTABLE_OUTPUT_DIRECTORY_RELEASE		${BIN_DIR}
-        BINARY_DIR								${BIN_DIR}
-        LIBRARY_OUTPUT_DIRECTORY				${LIB_DIR}
-        ARCHIVE_OUTPUT_DIRECTORY				${LIB_DIR}
-        ARCHIVE_OUTPUT_DIRECTORY_DEBUG			${LIB_DIR}
-        ARCHIVE_OUTPUT_DIRECTORY_RELEASE		${LIB_DIR}
-    )
-
-    SET(LIBRARY_OUTPUT_DIRECTORY ${LIB_DIR})
-    SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LIB_DIR})
-    #SET(ARCHIVE_OUTPUT_DIRECTORY ${LIB_DIR})
-    MESSAGE("lib out dirs ${LIB_DIR}")
-
-    set_target_properties(${LIB_NAME} PROPERTIES LINKER_LANGUAGE CXX)
-
-    unset(LIB_NAME)
-    unset(LIB_NAME_REL)
-    unset(LIB_NAME_DBG)
-    unset(BIN_DIR)
-    unset(LIB_DIR)
-    unset(INC_DIR)
-    unset(SRC_DIR)
-    unset(PROJECT_FILES)
-    unset(TARGET_NAME_REL)
-    unset(TARGET_NAME_DBG)
-    unset(LIBRARY_OUTPUT_DIRECTORY)
-    unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
-endforeach()
-
-project(${SPP_LIB_NAME} C CXX)
 set(BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin")
 set(LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/lib")
-set(INC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include/Spp")
-set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/Spp")
-set(DEMO_DIR_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Test")
-#SET(PROJECT_BINARY_DIR "${BIN_DIR}")
-#SET(LIBRARY_OUTPUT_PATH "${PROJECT_BINARY_DIR}")
+set(INC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
+SET(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
+SET(THIRD_PARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/ThirdParty")
+SET(LIB_TYPE)
+SET(DLL_EXPORT_MACRO "SPP_API_EXPORT")
+#MESSAGE("bin dir: '${CMAKE_CURRENT_BINARY_DIR}' '${CMAKE_RUNTIME_OUTPUT_DIRECTORY}' '${CMAKE_LIBRARY_OUTPUT_DIRECTORY}'")
 
-MESSAGE("Paths ${SRC_FILES}")
+#SPPngine_Core
+#add_subdirectory("${THIRD_PARTY_DIR}/SpirV/glslang")
 
-COMPILER_OPTIONS()
-add_definitions(-DSPP_API_EXPORT)
+set(LIB_NAME "${CORE_ENGINE_NAME}")
+set(LIB_INCLUDE_DIR_PATH "Core")
+set(LIB_SOURCE_DIR_PATH "Core")
+SET(LIB_DEPENDENCIES)
+SET(LINK_RELEASE_LIBS)
+set(LINK_DEBUG_LIBS)
+include(EngineLib.cmake NO_POLICY_SCOPE)
+set(CORE_ENGINE_NAME_LIB_RELEASE "${LIB_RELEASE_NAME}")
+set(CORE_ENGINE_NAME_LIB_DEBUG "${LIB_DEBUG_NAME}")
 
-SET_INCLUDE_FILES()
-CREATE_PROJECT_DIRS()
+#SPPngine_RenderSystem
+set(LIB_NAME "${BIN_ENGINE_NAME}")
+set(LIB_INCLUDE_DIR_PATH "bin")
+set(LIB_SOURCE_DIR_PATH "bin")
+SET(LIB_DEPENDENCIES ${CORE_ENGINE_NAME})
+SET(LINK_RELEASE_LIBS ${CORE_ENGINE_NAME_LIB_RELEASE})
+set(LINK_DEBUG_LIBS ${CORE_ENGINE_NAME_LIB_DEBUG})
+include(EngineLib.cmake NO_POLICY_SCOPE)
+set(BIN_ENGINE_NAME_LIB_RELEASE "${LIB_RELEASE_NAME}")
+set(BIN_ENGINE_NAME_LIB_DEBUG "${LIB_DEBUG_NAME}")
 
-set(PROJECT_FILES
-    "${INCLUDE_FILES}"
-    "${SOURCE_FILES}"
-)
-message("proj files ${SOURCE_FILES}")
 
-include_directories(${INC_DIR} "${CMAKE_CURRENT_SOURCE_DIR}/include/")
-add_library(${SPP_LIB_NAME} SHARED
-    ${PROJECT_FILES}
-)
+set(LIB_NAME "${ASM_ENGINE_NAME}")
+set(ASM_NAME ${LIB_NAME})
+set(LIB_INCLUDE_DIR_PATH "asm")
+set(LIB_SOURCE_DIR_PATH "asm")
+SET(LIB_DEPENDENCIES ${BIN_ENGINE_NAME})
+SET(LINK_RELEASE_LIBS ${BIN_ENGINE_NAME_LIB_RELEASE})
+set(LINK_DEBUG_LIBS ${BIN_ENGINE_NAME_LIB_DEBUG})
+include(EngineLib.cmake NO_POLICY_SCOPE)
+set(ASM_ENGINE_NAME_LIB_RELEASE "${LIB_RELEASE_NAME}")
+set(ASM_ENGINE_NAME_LIB_DEBUG "${LIB_DEBUG_NAME}")
 
-SET(TARGET_NAME_REL "${SPP_LIB_NAME_REL}")
-SET(TARGET_NAME_DBG "${SPP_LIB_NAME_DBG}")
-set_target_properties(${SPP_LIB_NAME}
-    PROPERTIES
-    OUTPUT_NAME_DEBUG						${TARGET_NAME_DBG}
-    OUTPUT_NAME_RELEASE						${TARGET_NAME_REL}
-    DEBUG_OUTPUT_NAME						${TARGET_NAME_DBG}
-    RELEASE_OUTPUT_NAME						${TARGET_NAME_REL}
+
+#SPPngine_Scene
+set(LIB_NAME "${HL_ENGINE_NAME}")
+set(LIB_INCLUDE_DIR_PATH "hl")
+set(LIB_SOURCE_DIR_PATH "hl")
+SET(LIB_DEPENDENCIES ${CORE_ENGINE_NAME} ${ASM_NAME})
+SET(LINK_RELEASE_LIBS ${CORE_ENGINE_NAME_LIB_RELEASE} ${ASM_ENGINE_NAME_LIB_RELEASE})
+SET(LINK_DEBUG_LIBS ${CORE_ENGINE_NAME_LIB_DEBUG} ${ASM_ENGINE_NAME_LIB_DEBUG})
+include(EngineLib.cmake NO_POLICY_SCOPE)
+set(HL_ENGINE_NAME_LIB_RELEASE "${LIB_RELEASE_NAME}")
+set(HL_ENGINE_NAME_LIB_DEBUG "${LIB_DEBUG_NAME}")
+
+#SPPngine
+SET(LIB_TYPE SHARED)
+set(LIB_NAME "${ENGINE_NAME}")
+set(LIB_INCLUDE_DIR_PATH "spp")
+set(LIB_SOURCE_DIR_PATH "spp")
+SET(LIB_DEPENDENCIES ${CORE_ENGINE_NAME} ${ASM_ENGINE_NAME} ${HL_ENGINE_NAME})
+SET(LINK_RELEASE_LIBS ${CORE_ENGINE_NAME_LIB_RELEASE} ${ASM_ENGINE_NAME_LIB_RELEASE} ${HL_ENGINE_NAME_LIB_RELEASE})
+SET(LINK_DEBUG_LIBS ${CORE_ENGINE_NAME_LIB_DEBUG} ${ASM_ENGINE_NAME_LIB_DEBUG} ${HL_ENGINE_NAME_LIB_DEBUG})
+include(EngineLib.cmake NO_POLICY_SCOPE)
+set(SPP_ENGINE_NAME_LIB_RELEASE "${LIB_RELEASE_NAME}")
+set(SPP_ENGINE_NAME_LIB_DEBUG "${LIB_DEBUG_NAME}")
+
+
+# SAMPLES
+
+set(SAMPLE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/samples")
+set(INC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
+SUBDIRLIST(SAMPLE_SUBDIRS ${SAMPLE_DIR})
+message("SAMPLE DIR LIST ${CMAKE_CURRENT_SOURCE_DIR} ${SAMPLE_SUBDIRS}")
+foreach(DIR ${SAMPLE_SUBDIRS})
+    message("${DIR} ${PROJECT_NAME}")
+    set(FULLPATH_DIR "${SAMPLE_DIR}/${DIR}")
+	set(SAMPLE_NAME "${ENGINE_NAME}_${DIR}")
+    project(${SAMPLE_NAME} C CXX)
+    set(APP_RELEASE_NAME "${SAMPLE_NAME}${ARCHITECTURE}")
+    set(APP_DEBUG_NAME "${APP_RELEASE_NAME}_d")
+    file(GLOB_RECURSE FILES ${FULLPATH_DIR}/*.h ${FULLPATH_DIR}/*.cpp)
     
-    LIBRARY_OUTPUT_DIRECTORY_DEBUG			${LIB_DIR}
-    IMPORT_LIBRARY_OUTPUT_DIRECTORY_DEBUG	${LIB_DIR}
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG			${BIN_DIR}
-    EXECUTABLE_OUTPUT_DIRECTORY_DEBUG		${BIN_DIR}
-    LIBRARY_OUTPUT_DIRECTORY_RELEASE		${LIB_DIR}
-    IMPORT_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${LIB_DIR}
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE		${BIN_DIR}
-    EXECUTABLE_OUTPUT_DIRECTORY_RELEASE		${BIN_DIR}
-    BINARY_DIR								${BIN_DIR}
-    LIBRARY_OUTPUT_DIRECTORY				${LIB_DIR}
-    ARCHIVE_OUTPUT_DIRECTORY				${LIB_DIR}
-    ARCHIVE_OUTPUT_DIRECTORY_DEBUG			${LIB_DIR}
-    ARCHIVE_OUTPUT_DIRECTORY_RELEASE		${LIB_DIR}
-)
-
-SET(LIBRARY_OUTPUT_DIRECTORY ${LIB_DIR})
-SET(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${LIB_DIR})
-#SET(ARCHIVE_OUTPUT_DIRECTORY ${LIB_DIR})
-MESSAGE("lib out dirs ${LIB_DIR}")
-
-set_target_properties(${SPP_LIB_NAME} PROPERTIES LINKER_LANGUAGE CXX)
-foreach(TMP_LIB_NAME ${LIB_NAME_LIST})
-    add_dependencies(${SPP_LIB_NAME} ${TMP_LIB_NAME})
-    target_link_libraries(${SPP_LIB_NAME} ${TMP_LIB_NAME})
+    include_directories(${INC_DIR})
+    link_directories(${LIB_DIR} ${BIN_DIR} ${LIB_SYMBOL_DEBUG_DIR} ${LIB_SYMBOL_RELEASE_DIR})
+    
+    add_executable(${SAMPLE_NAME} ${FILES})
+    add_dependencies(${SAMPLE_NAME} ${ENGINE_NAME} ${HL_ENGINE_NAME} ${ASM_ENGINE_NAME} ${BIN_ENGINE_NAME})
+    message("${SAMPLE_NAME}->${ENGINE_NAME}")
+    
+    set_target_properties(${SAMPLE_NAME} PROPERTIES OUTPUT_NAME_DEBUG ${APP_DEBUG_NAME})
+    set_target_properties(${SAMPLE_NAME} PROPERTIES OUTPUT_NAME_RELEASE ${APP_RELEASE_NAME})
+    set_target_properties(${SAMPLE_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BIN_DIR})
+    set_target_properties(${SAMPLE_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY_RELEASE ${BIN_DIR})
+    
+    set(LINK_LIB optimized ${LIB_RELEASE_NAME} debug ${LIB_DEBUG_NAME})
+    target_link_libraries(${SAMPLE_NAME} ${LINK_LIB} ${ENGINE_NAME} ${HL_ENGINE_NAME} ${ASM_ENGINE_NAME} ${BIN_ENGINE_NAME})
 endforeach()
 
-IF(OS_WINDOWS EQUAL 1)
-    FIND_LIBRARY(SHELL32_LIB "shell32.lib")
-    TARGET_LINK_LIBRARIES(${SPP_LIB_NAME} debug "shell32.lib")
-    TARGET_LINK_LIBRARIES(${SPP_LIB_NAME} optimized "shell32.lib")
-
-SET(MONO_PATH "C:/Program Files/Mono")
-FIND_LIBRARY(MONO_LIB "mono-2.0.lib" PATHS "${MONO_PATH}/lib")
-IF(MONO_LIB)
-    ADD_DEFINITIONS(-DSPP_USE_MONO)
-    TARGET_LINK_LIBRARIES(${SPP_LIB_NAME} debug "${MONO_LIB}")
-    TARGET_LINK_LIBRARIES(${SPP_LIB_NAME} optimized "${MONO_LIB}")
-    INCLUDE_DIRECTORIES("${MONO_PATH}/include/mono-2.0")
-    MESSAGE(${MONO_LIB})
-ENDIF() # MONO_LIB_FOUND
-ENDIF()
-
-#set(LINK_LIB optimized ${SPP_LIB_NAME_REL} debug ${SPP_LIB_NAME_DBG})
-#target_link_libraries(${SPP_LIB_NAME} ${LINK_LIB})
-
-######## TEST DEMO ###########
-project(${DEMO_NAME} C CXX)
-set(${PROJECT_NAME} "${SPP_LIB_NAME}")
-COMPILER_OPTIONS()
-#SET_INCLUDE_FILES()
-set(DEMO_FILES
-    ${INCLUDE_FILES}
-    ${SOURCE_FILES}
-)
-
-INCLUDE_DIRECTORIES(${LIB_DIR})
-LINK_DIRECTORIES(${LIB_DIR})
-
-include_directories(${INC_DIR} ${DEMO_DIR_PATH})
-add_executable(${DEMO_NAME} 
-    "${DEMO_DIR_PATH}/main.cpp"
-)
-
-add_dependencies(${DEMO_NAME} ${SPP_LIB_NAME})
-
- 
-SET(TARGET_NAME_REL "${DEMO_NAME_REL}")
-SET(TARGET_NAME_DBG "${DEMO_NAME_DBG}")
-set_target_properties(${DEMO_NAME}
-    PROPERTIES
-    OUTPUT_NAME_DEBUG						${TARGET_NAME_DBG}
-    OUTPUT_NAME_RELEASE						${TARGET_NAME_REL}
-    DEBUG_OUTPUT_NAME						${TARGET_NAME_DBG}
-    RELEASE_OUTPUT_NAME						${TARGET_NAME_REL}
-    
-    LIBRARY_OUTPUT_DIRECTORY_DEBUG			${LIB_DIR}
-    IMPORT_LIBRARY_OUTPUT_DIRECTORY_DEBUG	${LIB_DIR}
-    RUNTIME_OUTPUT_DIRECTORY_DEBUG			${BIN_DIR}
-    EXECUTABLE_OUTPUT_DIRECTORY_DEBUG		${BIN_DIR}
-    LIBRARY_OUTPUT_DIRECTORY_RELEASE		${LIB_DIR}
-    IMPORT_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${LIB_DIR}
-    RUNTIME_OUTPUT_DIRECTORY_RELEASE		${BIN_DIR}
-    EXECUTABLE_OUTPUT_DIRECTORY_RELEASE		${BIN_DIR}
-    BINARY_DIR								${BIN_DIR}
-    LIBRARY_OUTPUT_DIRECTORY				${LIB_DIR}
-    ARCHIVE_OUTPUT_DIRECTORY				${LIB_DIR}
-)
-
-
-set_target_properties(${DEMO_NAME} PROPERTIES LINKER_LANGUAGE CXX)
-    
-set(LINK_LIB optimized ${SPP_LIB_NAME_REL} debug ${SPP_LIB_NAME_DBG})
-target_link_libraries(${DEMO_NAME} ${LINK_LIB})
+#project(${ENGINE_NAME} C CXX)

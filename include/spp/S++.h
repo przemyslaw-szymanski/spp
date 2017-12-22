@@ -1,11 +1,14 @@
 #pragma once
 
-#include "bin/CVirtualMachine.h"
+#include "asm/Asm.h"
+#include "bin/Bin.h"
 
 namespace SPP
 {
-    class CSPP
+    class SPP_API CSpp
     {
+        public:
 
+            CSpp();
     };
 } // SPP

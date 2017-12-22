@@ -13,6 +13,42 @@ namespace SPP
             m_aOpcodeFunctions[Opcodes::POP] = &CVirtualMachine::_Pop;
             m_aOpcodeFunctions[ Opcodes::LOAD ] = &CVirtualMachine::_Load;
             m_aOpcodeFunctions[Opcodes::JMP] = &CVirtualMachine::_Jmp;
+            m_aOpcodeFunctions[ Opcodes::CALL ] = &CVirtualMachine::_Call;
+            m_aOpcodeFunctions[ Opcodes::RET ] = &CVirtualMachine::_Ret;
+            m_aOpcodeFunctions[ Opcodes::ADDI ] = &CVirtualMachine::_AddI;
+            m_aOpcodeFunctions[ Opcodes::ADDU ] = &CVirtualMachine::_AddU;
+            m_aOpcodeFunctions[ Opcodes::ADDF ] = &CVirtualMachine::_AddF;
+            //m_aOpcodeFunctions[ Opcodes::ADDP ] = &CVirtualMachine::_AddP;
+            m_aOpcodeFunctions[ Opcodes::SUBI ] = &CVirtualMachine::_SubI;
+            m_aOpcodeFunctions[ Opcodes::SUBU ] = &CVirtualMachine::_SubU;
+            m_aOpcodeFunctions[ Opcodes::SUBF ] = &CVirtualMachine::_SubF;
+            m_aOpcodeFunctions[ Opcodes::MULI ] = &CVirtualMachine::_MulI;
+            m_aOpcodeFunctions[ Opcodes::MULU ] = &CVirtualMachine::_MulU;
+            m_aOpcodeFunctions[ Opcodes::MULF ] = &CVirtualMachine::_MulF;
+            m_aOpcodeFunctions[ Opcodes::DIVI ] = &CVirtualMachine::_DivI;
+            m_aOpcodeFunctions[ Opcodes::DIVU ] = &CVirtualMachine::_DivU;
+            m_aOpcodeFunctions[ Opcodes::DIVF ] = &CVirtualMachine::_DivF;
+            m_aOpcodeFunctions[ Opcodes::ADDAI ] = &CVirtualMachine::_AddAI;
+            m_aOpcodeFunctions[ Opcodes::ADDAU ] = &CVirtualMachine::_AddAU;
+            m_aOpcodeFunctions[ Opcodes::ADDAF ] = &CVirtualMachine::_AddAF;
+            //m_aOpcodeFunctions[ Opcodes::ADDAP ] = &CVirtualMachine::_AddAP;
+            m_aOpcodeFunctions[ Opcodes::SUBAI ] = &CVirtualMachine::_SubAI;
+            m_aOpcodeFunctions[ Opcodes::SUBAU ] = &CVirtualMachine::_SubAU;
+            m_aOpcodeFunctions[ Opcodes::SUBAF ] = &CVirtualMachine::_SubAF;
+            m_aOpcodeFunctions[ Opcodes::MULAI ] = &CVirtualMachine::_MulAI;
+            m_aOpcodeFunctions[ Opcodes::MULAU ] = &CVirtualMachine::_MulAU;
+            m_aOpcodeFunctions[ Opcodes::MULAF ] = &CVirtualMachine::_MulAF;
+            m_aOpcodeFunctions[ Opcodes::DIVAI ] = &CVirtualMachine::_DivAI;
+            m_aOpcodeFunctions[ Opcodes::DIVAU ] = &CVirtualMachine::_DivAU;
+            m_aOpcodeFunctions[ Opcodes::DIVAF ] = &CVirtualMachine::_DivAF;
+            m_aOpcodeFunctions[ Opcodes::INCI ] = &CVirtualMachine::_IncI;
+            m_aOpcodeFunctions[ Opcodes::INCU ] = &CVirtualMachine::_IncU;
+            m_aOpcodeFunctions[ Opcodes::INCF ] = &CVirtualMachine::_IncF;
+            //m_aOpcodeFunctions[ Opcodes::INCP ] = &CVirtualMachine::_IncP;
+            m_aOpcodeFunctions[ Opcodes::DECI ] = &CVirtualMachine::_DecI;
+            m_aOpcodeFunctions[ Opcodes::DECU ] = &CVirtualMachine::_DecU;
+            m_aOpcodeFunctions[ Opcodes::DECF ] = &CVirtualMachine::_DecF;
+            
         }
 
         CVirtualMachine::InstrRetType CVirtualMachine::_ExecuteInstruction(const SInstructionDesc& Desc)
@@ -21,7 +57,47 @@ namespace SPP
             return (this->*pFunc)(Desc.OpcodeDesc);
         }
 
-        void CVirtualMachine::Execute(const uint8_t* pCode, const size_t size)
+        CVirtualMachine::InstrRetType CVirtualMachine::_Execute(const uint8_t* pCode)
+        {
+            const uint8_t* pCurrPtr = pCode;
+            const uint8_t* pRet = pCurrPtr;
+            SStack Stack;
+            SStack* pPrevStack = m_pCurrStack;
+            m_pCurrStack = &Stack;
+
+            SInstructionDesc Desc;
+            Desc.OpcodeDesc.pStack = m_pCurrStack;
+
+            while( pCurrPtr )
+            {    
+                Desc.op = static_cast<OPCODE>( *pCurrPtr );
+                Desc.OpcodeDesc.pCode = pCurrPtr;
+                
+                pCurrPtr = _ExecuteInstruction( Desc );
+                if( pCurrPtr )
+                {
+                    pRet = pCurrPtr;
+                }
+            }
+            m_pCurrStack = pPrevStack;
+            return pRet;
+        }
+
+        void CVirtualMachine::Execute(const char* pEntryPointName)
+        {
+            uint32_t hash = std::hash< const char* >{}( pEntryPointName );
+            _Execute( hash );
+        }
+
+        void CVirtualMachine::_Execute(uint32_t hash)
+        {
+            
+            const SEntryPointDesc& Desc = m_mEntryPoints[ hash ];
+            const uint8_t* pCode = m_pCode + Desc.offset;
+            _Execute( pCode );
+        }
+
+        void CVirtualMachine::Init(const uint8_t* pCode, const size_t size)
         {
             const uint8_t* pCurrPtr = pCode;
             const uint8_t* pEndPtr = pCode + size;
@@ -31,13 +107,14 @@ namespace SPP
             m_pCode = pCode + pHeader->codeStartOffset;
             pCurrPtr = m_pCode;
             m_pConstants = pCode + pHeader->constantStartOffset;
-            
-            while (pCurrPtr < pEndPtr)
+            m_pCurrStack = &m_Stack;
+
+            const SEntryPointDesc* pEntryPoints = reinterpret_cast< const SEntryPointDesc* >( pCode + pHeader->entryPointStartOffset);
+            for( uint32_t i = 0; i < pHeader->entryPointCount; ++i )
             {
-                SInstructionDesc Desc;
-                Desc.op = static_cast<OPCODE>( *pCurrPtr );
-                Desc.OpcodeDesc.pCode = pCurrPtr;
-                pCurrPtr = _ExecuteInstruction(Desc);
+                const SEntryPointDesc* pDesc = ( pEntryPoints );
+                pEntryPoints++;
+                m_mEntryPoints[ pDesc->hash ] = *pDesc;
             }
         }
 
@@ -61,11 +138,9 @@ namespace SPP
                     chr = *pCurr++;
                     switch (chr)
                     {
-                        case 'd': ss << Stack.aRegisters[currArg++].i32; break;
-                        case 'u': ss << Stack.aRegisters[currArg++].u32; break;
                         case 'f': ss << Stack.aRegisters[currArg++].f64; break;
-                        case 'l': ss << Stack.aRegisters[currArg++].i64; break;
-                        case 'q': ss << Stack.aRegisters[currArg++].u64; break;
+                        case 'd': ss << Stack.aRegisters[currArg++].i64; break;
+                        case 'u': ss << Stack.aRegisters[currArg++].u64; break;
                         case 's': ss << static_cast< const char* >( Stack.aRegisters[currArg++].ptr ); break;
                         case 'p': ss<< "0x" << Stack.aRegisters[currArg++].ptr; break;
                         default: ss << "<unknown>"; break;
@@ -84,27 +159,29 @@ namespace SPP
         CVirtualMachine::InstrRetType CVirtualMachine::_Push(const SInstrArguments& Args)
         {
             const auto pInstr = reinterpret_cast<const Instructions::SInstr1*>(Args.pCode);
-            m_Stack.aRegStack[m_Stack.currStackPtr++] = m_Stack.aRegisters[pInstr->arg1];
+            m_Stack.aRegStack[ m_Stack.currStackPtr++ ] = Args.pStack->aRegisters[ pInstr->arg1 ];
             return Args.pCode + sizeof(Instructions::SInstr1);
         }
 
         CVirtualMachine::InstrRetType CVirtualMachine::_Pop(const SInstrArguments& Args)
         {
             const auto pInstr = reinterpret_cast<const Instructions::SInstr1*>(Args.pCode);
-            m_Stack.aRegisters[pInstr->arg1] = m_Stack.aRegStack[--m_Stack.currStackPtr];
+            //m_Stack.aRegisters[pInstr->arg1] = m_Stack.aRegStack[--m_Stack.currStackPtr];
+            Args.pStack->aRegisters[ pInstr->dstRegIdx ] = m_Stack.aRegStack[ --m_Stack.currStackPtr ];
             return Args.pCode + sizeof(Instructions::SInstr1);
         }
 
         CVirtualMachine::InstrRetType CVirtualMachine::_Load(const SInstrArguments& Args)
         {
             const auto pLoad = reinterpret_cast< const Instructions::SLoad* >( Args.pCode );
-            auto& Reg = m_Stack.aRegisters[ pLoad->dstRegIdx ];
+            //auto& Reg = m_Stack.aRegisters[ pLoad->dstRegIdx ];
+            auto& Reg = Args.pStack->aRegisters[ pLoad->dstRegIdx ];
             if( pLoad->Mask.isConstant )
             {
-                const void* pPtr = m_pConstants + pLoad->offset;
+                const void* pPtr = m_pConstants + pLoad->offset + sizeof(SConstant);
                 switch (pLoad->Mask.type)
                 {
-                    case RegDataTypes::PTR: Reg.ptr = pPtr; break;
+                    case ValueTypes::PTR: Reg.ptr = pPtr; break;
                     /*case RegDataTypes::INT_16:
                     case RegDataTypes::INT_32:
                     case RegDataTypes::INT_64:
@@ -136,16 +213,25 @@ namespace SPP
         CVirtualMachine::InstrRetType CVirtualMachine::_Mov(const SInstrArguments& Args)
         {
             const auto pInstr = reinterpret_cast<const Instructions::SInstr2*>(Args.pCode);
-            m_Stack.aRegisters[pInstr->dstRegIdx] = m_Stack.aRegisters[pInstr->srcRegIdx1];
+            Args.pStack->aRegisters[pInstr->dstRegIdx] = Args.pStack->aRegisters[pInstr->srcRegIdx1];
             return Args.pCode + sizeof(Instructions::SInstr2);
         }
 
-        CVirtualMachine::InstrRetType CVirtualMachine::_Add(const SInstrArguments& Args)
+        CVirtualMachine::InstrRetType CVirtualMachine::_Ret(const SInstrArguments& Args)
         {
-            const auto pInstr = reinterpret_cast<const Instructions::SInstr3*>(Args.pCode);
-            auto& DstReg = m_Stack.aRegisters[pInstr->dstRegIdx];
-            auto& SrcReg1 = m_Stack.aRegisters[pInstr->]
-            return Args.pCode + sizeof(Instructions::SInstr2);
+            using InstrType = Instructions::SInstr1;
+            const auto pInstr = reinterpret_cast<const InstrType*>( Args.pCode );
+            
+            return 0;
+        }
+
+        CVirtualMachine::InstrRetType CVirtualMachine::_Call(const SInstrArguments& Args)
+        {
+            using InstrType = Instructions::SCall;
+            const auto pInstr = reinterpret_cast<const InstrType*>( Args.pCode );
+            const uint8_t* pPtr = m_pCode + pInstr->offset;
+            _Execute( pPtr );
+            return Args.pCode + sizeof(InstrType);
         }
 
     } // Bin
