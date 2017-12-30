@@ -1,5 +1,6 @@
 #include "asm/Asm.h"
 #include <cctype>
+#include <algorithm>
 
 //extern "C"
 //{
@@ -34,6 +35,31 @@ namespace SPP
             m_mOpcodes[ "Div" ] = &CCompiler::_ParseDiv;*/
         }
 
+        int32_t FindFirstOf( const char* pStr, const char* pFind, uint32_t sizeLen )
+        {
+            const char* pCurr = pStr;
+            int32_t idx = 0;
+            while( pCurr )
+            {
+                bool found = true;
+                for( uint32_t i = 0; i < sizeLen; ++i )
+                {
+                    if( pCurr[ i ] != pFind[ i ] )
+                    {
+                        found = false;
+                        break;
+                    }
+                }
+                if( found )
+                {
+                    return idx;
+                }
+                pCurr++;
+                idx++;
+            }
+            return -1;
+        }
+
         CCompiler::ErrorVec CCompiler::Compile(const SCompileDesc& Desc)
         {
             ErrorVec vErrors;
@@ -43,10 +69,18 @@ namespace SPP
             }
             m_pAsmCode = new char[ Desc.codeSize ] + 2;
             m_asmCodeSize = Desc.codeSize;
-            
+            auto len = strlen( "\"" );
+
             for( uint32_t i = 0; i < Desc.codeSize; ++i )
             {
-                m_pAsmCode[ i ] = std::tolower( Desc.pCode[ i ] );
+                if( Desc.pCode[ i ] == '"' )
+                {
+                    i += FindFirstOf( &Desc.pCode[ i ], "\"", len );
+                }
+                else
+                {
+                    m_pAsmCode[ i ] = std::tolower( Desc.pCode[ i ] );
+                }
             }
             m_pAsmCode[ Desc.codeSize ] = '\n';
             m_pAsmCode[ Desc.codeSize + 1 ] = '\0';
@@ -66,6 +100,28 @@ namespace SPP
             }
         }
 
+        
+
+        void TokenizeConstant(char* pCode, const char* delim, StrVec* pvOut)
+        {
+            const char* ptr = strtok( pCode, delim );
+            while( ptr )
+            {
+                pvOut->push_back( ptr );
+                ptr = strtok( nullptr, delim );
+            }
+        }
+
+        bool IsOpcode(const char* pLine, const char* pOpcode, uint32_t opLen)
+        {
+            for( uint32_t i = 0; i < opLen; ++i )
+            {
+                if( pLine[ i ] != pOpcode[ i ] )
+                    return false;
+            }
+            return true;
+        }
+
         bool CCompiler::_Parse(CCompiler::ErrorVec* pvOut)
         {
             StrVec vLines, vInstr;
@@ -80,7 +136,24 @@ namespace SPP
             }
             uint32_t errorCount = 0;
 
-            for( uint32_t i = 0; i < vLines.size(); ++i )
+            uint32_t cnstCount = 0;
+            // Move all constants at the top
+            std::sort( vLines.begin(), vLines.end(), [&](const char* pLeft, const char* pRight)
+            {
+                bool isLeftCnst = IsOpcode( pLeft, "cnst", 4 );
+                bool isRightCnst = IsOpcode( pRight, "cnst", 4 );
+                cnstCount += isLeftCnst;
+                return isLeftCnst > isRightCnst;
+            } );
+
+            for( uint32_t i = 0; i < cnstCount; ++i )
+            {
+                vInstr.clear();
+                TokenizeConstant( ( char* )vLines[ i ], " \"", &vInstr );
+                errorCount += _ParseInstr( vInstr, i, pvOut );
+            }
+
+            for( uint32_t i = cnstCount; i < vLines.size(); ++i )
             {
                 vInstr.clear();
                 Tokenize( (char*)vLines[ i ], " ", &vInstr );
@@ -133,23 +206,24 @@ namespace SPP
             uint32_t len = strlen( pArg );
             if( len > 2 )
             {
-                switch( pArg[ len - 1 ] )
+                const char firstChar = pArg[ 0 ];
+                const char lastChar = pArg[ len - 1 ];
+                // Last character of the argument
+                switch( lastChar )
                 {
                     case 'f': pOut->dataType = FLOAT; break;
                     case 'u': pOut->dataType = UINT; break;
                     case 'i': pOut->dataType = INT; break;
                     case 'p': pOut->dataType = PTR; break;
+                    case '"': pOut->dataType = PTR; break;
                     default: return "Invalid argument type.";
                 }
 
-                char value[ 4 ] = { 0 };
-                memcpy_s( value, 4, pArg+1, len-2 );
-
-                if( pArg[ 0 ] == 'r' )
+                if( firstChar == 'r' )
                 {
                     pOut->type = REGISTER;
                 }
-                else if( pArg[ 0 ] == 'c' )
+                else if( firstChar == 'c' )
                 {
                     pOut->type = CONSTANT;
                 }
@@ -158,7 +232,17 @@ namespace SPP
                     return "Undefined argument type.";
                 }
 
-                pOut->idx = atoi( value );
+                if( firstChar == '"' && lastChar == '"' )
+                {
+                    pOut->Value.ptr = &pArg[ 0 ];
+                    const char* p = (const char*)pOut->Value.ptr;
+                }
+                else
+                {
+                    char value[ 4 ] = { 0 };
+                    memcpy_s( value, 4, pArg + 1, len - 2 );
+                    pOut->idx = atoi( value );
+                }
                 return "";
             }
             else
@@ -200,6 +284,34 @@ namespace SPP
                 return false;
             }
 
+            SPP::Bin::Instructions::SInstr2 Instr;
+            Instr.Opcode = SPP::Bin::Opcodes::MOV;
+            Instr.dstRegIdx = aArgs[ 0 ].idx;
+            Instr.srcRegIdx1 = aArgs[ 1 ].idx;
+            SBinInstr BinInstr;
+            BinInstr.size = sizeof( Instr );
+            assert( sizeof( BinInstr.aBuffer ) > sizeof( Instr ) );
+            memcpy_s( BinInstr.aBuffer, sizeof( BinInstr.aBuffer ), &Instr, sizeof( Instr ) );
+            m_vInstrs.push_back( BinInstr );
+            return true;
+        }
+
+        bool CCompiler::_ParseLoad(const SParseDesc& Desc)
+        {
+            if( Desc.pvTokens->size() != 3 )
+            {
+                SError Err;
+                Err.error = "Invalid number of operands.";
+                Err.line = Desc.lineIdx;
+                Desc.pvErrors->push_back( Err );
+                return false;
+            }
+
+            SArgType aArgs[ 4 ];
+            if( !_ParseArgs( Desc, 2, aArgs ) )
+            {
+                return false;
+            }
 
             SPP::Bin::Instructions::SInstr2 Instr;
             Instr.Opcode = SPP::Bin::Opcodes::MOV;

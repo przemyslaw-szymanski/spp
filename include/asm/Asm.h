@@ -55,17 +55,20 @@ namespace SPP
 
                 struct SArgType
                 {
-                    uint8_t type;
-                    uint8_t dataType;
-                    uint8_t idx;
+                    uint8_t     type;
+                    uint8_t     dataType;
+                    uint8_t     idx;
+                    Bin::SValue Value;
                 };
 
                 bool        _Parse(ErrorVec* pvOut);
                 bool        _ParseArgs(const SParseDesc&, uint32_t count, SArgType*);
                 const char* _ParseArg(const char*, SArgType*);
+                bool        _ParseConstantArg(const char*, SArgType*);
                 bool        _ParseInstr(const StrVec& vTokens, uint32_t lineIdx, ErrorVec* pvOut);
 
                 bool        _ParseMov(const SParseDesc&);
+                bool        _ParseLoad( const SParseDesc& );
                 /*bool        _ParseJmp( const SParseDesc& );
                 bool        _ParseCall( const SParseDesc& );
                 bool        _ParsePrnt( const SParseDesc& );

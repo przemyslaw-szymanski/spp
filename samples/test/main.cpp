@@ -270,7 +270,9 @@ int MainDLL()
     {
         SPP::ASM::CCompiler c;
         const char* pCode =
-            "mov r1u r2i";
+            "cnst c1p \"Hello %d\\n\""
+            "mov r1u c1p\n"
+            ;
         SPP::ASM::SCompileDesc Desc;
         Desc.pCode = pCode;
         Desc.codeSize = strlen( pCode ) + 1;
