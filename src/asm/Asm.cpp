@@ -102,14 +102,22 @@ namespace SPP
 
         
 
-        void TokenizeConstant(char* pCode, const char* delim, StrVec* pvOut)
+        void TokenizeConstant(char* pCode, StrVec* pvOut)
         {
-            const char* ptr = strtok( pCode, delim );
-            while( ptr )
+            char* ptr = strtok( pCode, " " );
+            if( ptr )
             {
                 pvOut->push_back( ptr );
-                ptr = strtok( nullptr, delim );
             }
+            ptr = strtok( nullptr, " " );
+            if( ptr )
+            {
+                pvOut->push_back( ptr );
+            }
+            ptr++;
+            int32_t len = FindFirstOf( ptr, "\n", 1 );
+            ptr[ len ] = '\0';
+            pvOut->push_back( ptr );
         }
 
         bool IsOpcode(const char* pLine, const char* pOpcode, uint32_t opLen)
@@ -142,14 +150,14 @@ namespace SPP
             {
                 bool isLeftCnst = IsOpcode( pLeft, "cnst", 4 );
                 bool isRightCnst = IsOpcode( pRight, "cnst", 4 );
-                cnstCount += isLeftCnst;
+                cnstCount += isLeftCnst || isRightCnst;
                 return isLeftCnst > isRightCnst;
             } );
 
             for( uint32_t i = 0; i < cnstCount; ++i )
             {
                 vInstr.clear();
-                TokenizeConstant( ( char* )vLines[ i ], " \"", &vInstr );
+                TokenizeConstant( ( char* )vLines[ i ], &vInstr );
                 errorCount += _ParseInstr( vInstr, i, pvOut );
             }
 
